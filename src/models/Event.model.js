@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const eventSchema = new mongoose.Schema(
   {
-    uid: {
+    hostUid: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true
@@ -16,6 +16,10 @@ const eventSchema = new mongoose.Schema(
       type: String,
       maxlength: 2000
     },
+    instructions: {
+      type: String,
+      default: ""
+    },
     startDate: {
       type: Date,
       required: true
@@ -25,17 +29,25 @@ const eventSchema = new mongoose.Schema(
       required: true
     },
     location: {
-      type: {
-        type: String,
-        enum: ['Point'],
-        default: 'Point'
-      },
-      coordinates: [Number], // [longitude, latitude]
-      address: String
+      type: String, 
+      required: true // Will store "Online Event" for virtual meetings
+    },
+    // ✅ Added Meeting Link for Online Events
+    meetingLink: {
+      type: String,
+      default: null
     },
     category: {
       type: String,
-      default: null
+      default: 'Social'
+    },
+    price: {
+      type: Number,
+      default: 0
+    },
+    capacity: {
+      type: Number,
+      default: 50
     },
     attendees: [{
       type: mongoose.Schema.Types.ObjectId,
@@ -49,21 +61,25 @@ const eventSchema = new mongoose.Schema(
       type: Boolean,
       default: true
     },
-    imageUrl: {
-      type: String,
-      default: null
-    }
+    coverUrl: { type: String, default: null },
+    videoUrl: { type: String, default: null },
+    faqs: [
+      {
+        question: { type: String, required: true },
+        answer: { type: String, default: "" }
+      }
+    ]
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
 
-// Geospatial index for location-based queries
-eventSchema.index({ location: '2dsphere' });
+// Indexes
 eventSchema.index({ startDate: 1 });
-eventSchema.index({ uid: 1, createdAt: -1 });
+eventSchema.index({ hostUid: 1, createdAt: -1 });
 
 const Event = mongoose.model('Event', eventSchema);
+
+// Sync indexes to be safe
+Event.syncIndexes();
 
 export default Event;

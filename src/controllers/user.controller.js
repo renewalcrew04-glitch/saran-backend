@@ -43,21 +43,21 @@ export const getUserProfile = async (req, res, next) => {
     }
 
     const postsCount = await Post.countDocuments({
-  uid: user._id,
-  isDeleted: false,
-});
+      uid: user._id,
+      isDeleted: false,
+    });
 
     const userObj = user.toObject();
 
-res.json({
-  success: true,
-  user: {
-    ...userObj,
-    postsCount,     // ✅ injected, not mutated
-    isFollowing,
-    isFollowedBy,
-  }
-});
+    res.json({
+      success: true,
+      user: {
+        ...userObj,
+        postsCount,
+        isFollowing,
+        isFollowedBy,
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -66,14 +66,23 @@ res.json({
 // @desc    Update user profile
 // @route   PUT /api/users/:uid
 // @access  Private (own profile only)
+// ... existing imports
+
+// @desc    Update user profile
+// @route   PUT /api/users/:uid
+// @access  Private (own profile only)
+// @desc    Update user profile
+// @route   PUT /api/users/:uid
+// @access  Private (own profile only)
 export const updateUserProfile = async (req, res, next) => {
   try {
-    const { uid } = req.params;
+    // ✅ FIX: Trust the Token (req.user._id) to identify the user
     const currentUserId = req.user._id;
-    const { name, bio, avatar, isPrivate } = req.body;
+    
+    const { name, bio, avatar, coverImage, website, locationString, phone, isPrivate } = req.body;
 
-    // Find user
-    const user = await User.findOne({ uid });
+    // Find the logged-in user directly
+    const user = await User.findById(currentUserId);
 
     if (!user) {
       return res.status(404).json({
@@ -82,21 +91,20 @@ export const updateUserProfile = async (req, res, next) => {
       });
     }
 
-    // Check if user is updating their own profile
-    if (user._id.toString() !== currentUserId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this profile'
-      });
-    }
-
     // Update fields
     if (name) user.name = name;
     if (bio !== undefined) user.bio = bio;
     if (avatar !== undefined) user.avatar = avatar;
+    if (coverImage !== undefined) user.coverImage = coverImage;
+    if (website !== undefined) user.website = website;
+    if (locationString !== undefined) user.locationString = locationString;
+    
+    // ✅ Phone Number Update
+    if (phone !== undefined) user.phone = phone;
+    
     if (isPrivate !== undefined) user.isPrivate = isPrivate;
 
-    // Mark profile as completed if not already
+    // Mark completed if basic info exists
     if (!user.profileCompleted && name && bio) {
       user.profileCompleted = true;
     }
@@ -111,7 +119,11 @@ export const updateUserProfile = async (req, res, next) => {
         email: updatedUser.email,
         name: updatedUser.name,
         avatar: updatedUser.avatar,
+        coverImage: updatedUser.coverImage,
         bio: updatedUser.bio,
+        website: updatedUser.website,
+        locationString: updatedUser.locationString,
+        phone: updatedUser.phone,
         isPrivate: updatedUser.isPrivate,
         profileCompleted: updatedUser.profileCompleted,
         verified: updatedUser.verified,
@@ -205,7 +217,6 @@ export const followUser = async (req, res, next) => {
       }
     });
   } catch (error) {
-    // Handle duplicate follow error
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -276,7 +287,6 @@ export const getFollowers = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    // Find user
     const user = await User.findOne({ uid });
 
     if (!user) {
@@ -286,7 +296,6 @@ export const getFollowers = async (req, res, next) => {
       });
     }
 
-    // Get followers
     const follows = await Follow.find({
       following: user._id,
       status: 'accepted'
@@ -301,7 +310,6 @@ export const getFollowers = async (req, res, next) => {
       followedAt: follow.createdAt
     }));
 
-    // Get total count
     const total = await Follow.countDocuments({
       following: user._id,
       status: 'accepted'
@@ -332,7 +340,6 @@ export const getFollowing = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    // Find user
     const user = await User.findOne({ uid });
 
     if (!user) {
@@ -342,7 +349,6 @@ export const getFollowing = async (req, res, next) => {
       });
     }
 
-    // Get following
     const follows = await Follow.find({
       follower: user._id,
       status: 'accepted'
@@ -357,7 +363,6 @@ export const getFollowing = async (req, res, next) => {
       followedAt: follow.createdAt
     }));
 
-    // Get total count
     const total = await Follow.countDocuments({
       follower: user._id,
       status: 'accepted'
@@ -378,12 +383,14 @@ export const getFollowing = async (req, res, next) => {
   }
 };
 
+// @desc    Delete account
+// @route   DELETE /api/users/me
+// @access  Private
+// ✅ ADDED BACK: This is the missing export causing your crash
 export const deleteMyAccount = async (req, res, next) => {
   try {
     const currentUserId = req.user._id;
-
     await User.deleteOne({ _id: currentUserId });
-
     return res.json({ success: true, message: "Account deleted" });
   } catch (err) {
     next(err);
@@ -407,7 +414,6 @@ export const searchUsers = async (req, res, next) => {
       });
     }
 
-    // Search users by username or name
     const searchRegex = new RegExp(q.trim(), 'i');
     
     const users = await User.find({
@@ -421,7 +427,6 @@ export const searchUsers = async (req, res, next) => {
       .skip(skip)
       .limit(limit);
 
-    // Get total count
     const total = await User.countDocuments({
       $or: [
         { username: searchRegex },
@@ -443,6 +448,7 @@ export const searchUsers = async (req, res, next) => {
     next(error);
   }
 };
+
 // @desc    Get posts of a user
 // @route   GET /api/users/:uid/posts
 // @access  Private
@@ -450,7 +456,6 @@ export const getUserPosts = async (req, res, next) => {
   try {
     const { uid } = req.params;
 
-    // Find user by UID (string)
     const user = await User.findOne({ uid });
     if (!user) {
       return res.status(404).json({
@@ -460,7 +465,7 @@ export const getUserPosts = async (req, res, next) => {
     }
 
     const posts = await Post.find({
-      uid: user._id,          // ✅ CORRECT FIELD
+      uid: user._id,
       isDeleted: false,
     })
       .sort({ createdAt: -1 });
