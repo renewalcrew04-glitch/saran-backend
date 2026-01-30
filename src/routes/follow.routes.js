@@ -4,6 +4,7 @@ import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
+// Maps to /api/follow/:uid
 router.post("/:uid", protect, followUser);
 router.delete("/:uid", protect, unfollowUser);
 
